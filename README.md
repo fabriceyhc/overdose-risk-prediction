@@ -1,323 +1,486 @@
 # SUD Facility Proximity Analysis
-## Geospatial Access to Treatment in Los Angeles County
+## Comprehensive Geospatial Access to Treatment in Los Angeles County
 
 **Study Area:** Los Angeles County, California
-**Generated:** November 25, 2025
+**Generated:** November 27, 2025
 **Geographic Coverage:** 2,496 Census Tracts | 313 ZIP Codes
-**Facilities Analyzed:** 764 SUD Treatment Facilities
+**Facilities Analyzed:** 756 SUD Treatment Facilities
+**Treatment Types:** 11 (OTP, MAT, Residential, Outpatient, IOP, Withdrawal Mgmt, Co-Occurring, Men's, Women's, Youth, All)
 
 ---
 
 ## Overview
 
-This analysis quantifies geographic access to Substance Use Disorder (SUD) treatment facilities across Los Angeles County. For each census tract and ZIP code, we calculate:
+This analysis provides **comprehensive geospatial access metrics** for Substance Use Disorder (SUD) treatment facilities across Los Angeles County. The dataset includes proximity measurements to **11 different treatment types** in a single unified file.
 
-1. **Distance to nearest facility** (km and miles)
-2. **Count of facilities within distance thresholds** (1, 5, 10, 15, 25 km/mi)
+### What's Included
 
-The analysis provides **5 filtered datasets** to address different research questions about facility type (residential vs. outpatient), target population (men, women, youth), and treatment availability.
+For each census tract and ZIP code, we calculate distance and facility counts for:
 
----
+1. **Treatment Modalities:**
+   - **OTP** - Opioid Treatment Program (76 facilities)
+   - **MAT** - Medication-Assisted Treatment (102 facilities)
+   - **IOP** - Intensive Outpatient (180 facilities)
+   - **Outpatient** - Outpatient services (494 facilities)
+   - **Residential** - Residential treatment (392 facilities)
+   - **Withdrawal Management** - Detox services (90 facilities)
+   - **Co-Occurring** - Dual diagnosis capable (103 facilities)
 
-## Key Findings
+2. **Population-Specific:**
+   - **Men's Facilities** (272 facilities)
+   - **Women's Facilities** (265 facilities)
+   - **Youth/Adolescent** (57 facilities)
 
-### Overall Access
-- **Median distance:** 1.14 km (0.71 miles) to nearest facility
-- **96.5%** of census tracts have ≥1 facility within 5km
-- **88 census tracts (3.5%)** are "treatment deserts" with zero facilities within 5km
-- Urban cores (West Hollywood, Downtown LA) have exceptional density: 300-350 facilities within 10 miles
+3. **All Facilities** (756 facilities - any treatment type)
 
-### Critical Gaps Identified
+### Metrics Computed
 
-#### 1. Residential Treatment Beds (44% Worse Access)
-- **44% of facilities are outpatient only** (no beds)
-- Median distance to residential facility: **1.64 km** vs **1.14 km** (all facilities)
-- **175 census tracts (7%)** have no residential facilities within 5km
-- **Impact:** Housing-insecure populations face significantly worse access to intensive care
-
-#### 2. Youth/Adolescent Services (5× Farther)
-- Only **22 youth facilities** (3% of total) in entire LA County
-- Median distance: **6.11 km** (5× farther than adult facilities)
-- **63% of census tracts** have ZERO youth facilities within 5km
-- **Impact:** Critical shortage for adolescent treatment needs
-
-#### 3. Gender Equity (Minimal Disparity)
-- Men: 746 facilities (98%) | Women: 728 facilities (95%)
-- Mean distance difference: **0.012 km** (essentially equal)
-- **90% of census tracts** have identical nearest facility for both genders
-- **Impact:** Gender access is already equitable; focus efforts elsewhere
+For each treatment type:
+- Distance to nearest facility (km and miles)
+- Count of facilities within 1, 5, 10, 15, 25 km
+- Count of facilities within 1, 3, 5, 10, 15 miles
 
 ---
 
-## Available Datasets
+## 🎯 Quick Start
 
-All datasets in `data/processed/` with both CSV and GeoJSON formats:
-
-| Dataset | Facilities | Median Distance | Treatment Deserts¹ | Primary Use Case |
-|---------|-----------|-----------------|-------------------|------------------|
-| **All** | 764 | 1.14 km (0.71 mi) | 3.5% | General facility availability |
-| **Residential** | 437 | 1.64 km (1.02 mi) | 7.0% | Bed availability, housing-insecure |
-| **Men** | 746 | 1.16 km (0.72 mi) | 4.0% | Male-specific access |
-| **Women** | 728 | 1.17 km (0.73 mi) | 4.2% | Female-specific, pregnancy/childcare |
-| **Youth** | 22 | 6.11 km (3.80 mi) | 62.7% | Adolescent treatment access |
-
-¹ % of census tracts with zero facilities within 5km
-
-### File Naming Convention
-```
-la_county_{geography}_facility_proximity_{filter}.{format}
-
-Examples:
-- la_county_census_tracts_facility_proximity_all.csv
-- la_county_zip_codes_facility_proximity_residential.geojson
-- la_county_census_tracts_facility_proximity_women.csv
-```
-
----
-
-## Quick Start
-
-### Loading Data
+### Loading the Comprehensive Dataset
 
 ```python
 import pandas as pd
 import geopandas as gpd
 
-# Load census tract data (CSV)
-df = pd.read_csv('data/processed/la_county_census_tracts_facility_proximity_all.csv')
+# Load comprehensive dataset (all treatment types in one file)
+df = pd.read_csv('data/processed/la_county_census_tracts_comprehensive.csv')
 
-# Load geospatial data for mapping (GeoJSON)
-gdf = gpd.read_file('data/processed/la_county_census_tracts_facility_proximity_all.geojson')
+# Check OTP access
+otp_deserts = df[df['count_otp_within_5km'] == 0]
+print(f"Census tracts with no OTP within 5km: {len(otp_deserts)} ({len(otp_deserts)/len(df)*100:.1f}%)")
 
-# Load a filtered dataset (e.g., residential only)
-residential_df = pd.read_csv('data/processed/la_county_census_tracts_facility_proximity_residential.csv')
+# Compare MAT vs OTP access
+df['mat_advantage'] = df['nearest_facility_mat_distance_km'] - df['nearest_facility_otp_distance_km']
+print(f"Tracts closer to MAT than OTP: {(df['mat_advantage'] < 0).sum()}")
+
+# Find comprehensive treatment deserts (no facilities of any type within 5km)
+comprehensive_deserts = df[df['count_any_within_5km'] == 0]
+print(f"Total treatment deserts: {len(comprehensive_deserts)}")
+
+# Load geospatial data for mapping
+gdf = gpd.read_file('data/processed/la_county_census_tracts_comprehensive.geojson')
 ```
 
-### Common Analyses
+### Example Analyses
 
 ```python
-# Find treatment deserts (zero facilities within 5km)
-deserts = df[df['count_within_5km'] == 0]
+# 1. Multi-modality access analysis
+df['has_otp_5km'] = df['count_otp_within_5km'] > 0
+df['has_mat_5km'] = df['count_mat_within_5km'] > 0
+df['has_residential_5km'] = df['count_residential_within_5km'] > 0
 
-# Find areas with poor residential access
-poor_access = residential_df[residential_df['nearest_facility_distance_km'] > 5]
+multi_access = df[df['has_otp_5km'] & df['has_mat_5km'] & df['has_residential_5km']]
+print(f"Tracts with full treatment spectrum: {len(multi_access)} ({len(multi_access)/len(df)*100:.1f}%)")
 
-# Compare men vs women access
-men = pd.read_csv('data/processed/la_county_census_tracts_facility_proximity_men.csv')
-women = pd.read_csv('data/processed/la_county_census_tracts_facility_proximity_women.csv')
-disparity = women['nearest_facility_distance_km'] - men['nearest_facility_distance_km']
+# 2. Treatment modality comparison
+comparison = df[[
+    'nearest_facility_any_distance_km',
+    'nearest_facility_otp_distance_km',
+    'nearest_facility_mat_distance_km',
+    'nearest_facility_residential_distance_km'
+]].median()
+print("\nMedian distance to nearest facility:")
+print(comparison)
 
-# Categorize access quality
-df['access_category'] = pd.cut(
-    df['nearest_facility_distance_km'],
-    bins=[0, 1, 3, 5, 10, 100],
-    labels=['Excellent', 'Good', 'Fair', 'Poor', 'Very Poor']
+# 3. Youth treatment access gaps
+youth_gaps = df[
+    (df['count_any_within_5km'] > 0) &  # Has adult treatment
+    (df['count_youth_within_5km'] == 0)  # No youth treatment
+]
+print(f"\nAreas with adult but no youth treatment: {len(youth_gaps)}")
+
+# 4. Categorize comprehensive access
+df['access_score'] = (
+    (df['count_otp_within_5km'] > 0).astype(int) +
+    (df['count_mat_within_5km'] > 0).astype(int) +
+    (df['count_residential_within_5km'] > 0).astype(int) +
+    (df['count_iop_within_5km'] > 0).astype(int)
 )
+print("\nAccess score distribution (0-4 modalities):")
+print(df['access_score'].value_counts().sort_index())
 ```
 
 ---
 
-## Data Columns
+## 📊 Key Findings
 
-Each dataset includes:
+### OTP (Opioid Treatment Program) Access
+- **76 OTP facilities** across LA County
+- Median distance: **4.98 km (3.09 miles)**
+- **49.7%** of census tracts are **OTP deserts** (no facility within 5km)
+- Average OTP facilities within 5km: **1.78**
 
-| Column | Description |
-|--------|-------------|
-| `CT20` / `ZIPCODE` | Census tract ID (2020) or ZIP code |
-| `LABEL` | Human-readable label (census tracts only) |
-| `centroid_lat` | Latitude of geographic unit centroid (WGS84) |
-| `centroid_lon` | Longitude of geographic unit centroid (WGS84) |
-| `nearest_facility_id` | OBJECTID of nearest facility |
-| `nearest_facility_name` | Name of nearest facility |
-| `nearest_facility_distance_km` | Distance to nearest (kilometers) |
-| `nearest_facility_distance_miles` | Distance to nearest (miles) |
-| `count_within_1km` to `count_within_25km` | Facility counts at 1, 5, 10, 15, 25 km |
-| `count_within_1mi` to `count_within_15mi` | Facility counts at 1, 3, 5, 10, 15 miles |
+### MAT (Medication-Assisted Treatment) Access
+- **102 MAT facilities**
+- Median distance: **4.78 km (2.97 miles)**
+- **44.4%** are MAT deserts
+- Often co-located with primary care (better distributed than OTP)
 
+### Residential Treatment Access
+- **392 residential facilities** (with beds)
+- Median distance: **2.35 km (1.46 miles)**
+- **16.9%** are residential deserts
+- Critical for housing-insecure populations
 
----
+### Youth/Adolescent Services (Critical Gap)
+- Only **57 youth facilities** (7.5% of total)
+- Median distance: **3.93 km** (2× farther than adult facilities)
+- **36.7%** of tracts have ZERO youth facilities within 5km
+- Severe shortage for adolescent treatment needs
 
-## Methodology
-
-### Distance Calculation
-- **Centroid computation:** NAD83 California State Plane Zone 5 (EPSG:2229) for accuracy
-- **Distance metric:** Geodesic distance (Haversine formula) accounts for Earth's curvature
-- **Performance:** Vectorized NumPy operations compute ~2.1M pairwise distances in seconds
-
-### Facility Filtering
-
-**Residential:** RES, RES-DETOX, DPH-DETOX, DSS program codes (facilities with beds)
-
-**Men:** CO-ED, MEN ONLY, MEN/YOUTH, DUAL DIAGNOSIS target populations
-
-**Women:** CO-ED, WOMEN ONLY, WOMEN/CHILDREN, WOMEN/YOUTH, DUAL DIAGNOSIS
-
-**Youth:** YOUTH, ADOLESCENT, CO-ED/YOUTH target populations
-
-### Data Sources
-- **SUD Facilities:** California Department of Health Care Services
-- **Census Tracts:** 2020 US Census
-- **ZIP Codes:** LA County boundaries
+### Overall Access (Any Facility)
+- **756 total facilities**
+- Median distance: **1.82 km (1.13 miles)**
+- **9.1%** are complete treatment deserts
+- Urban cores have exceptional density (100+ facilities within 10km)
 
 ---
 
-## Reproducing the Analysis
+## 📁 Dataset Structure
+
+### Comprehensive Dataset (Recommended)
+
+Single file with **161 columns** covering all treatment types:
+
+**File:** `data/processed/la_county_census_tracts_comprehensive.csv` (2.2 MB)
+
+**Column Structure:**
+```
+Geographic Columns (8):
+- OBJECTID, CT20, LABEL, ShapeSTArea, ShapeSTLength, centroid_lat, centroid_lon, geometry
+
+Proximity Metrics (14 columns × 11 treatment types = 154 columns):
+For each treatment type (any, otp, mat, residential, outpatient, iop,
+                        withdrawal_mgmt, co_occurring, men, women, youth):
+
+- nearest_facility_{type}_id
+- nearest_facility_{type}_name
+- nearest_facility_{type}_distance_km
+- nearest_facility_{type}_distance_miles
+- count_{type}_within_1km, 5km, 10km, 15km, 25km
+- count_{type}_within_1mi, 3mi, 5mi, 10mi, 15mi
+```
+
+### Available Datasets
+
+| File | Size | Description |
+|------|------|-------------|
+| `la_county_census_tracts_comprehensive.csv` | 2.2 MB | All treatment types, census tracts |
+| `la_county_census_tracts_comprehensive.geojson` | 31 MB | Same, with geometry for mapping |
+| `la_county_zip_codes_comprehensive.csv` | 280 KB | All treatment types, ZIP codes |
+| `la_county_zip_codes_comprehensive.geojson` | 21 MB | Same, with geometry for mapping |
+
+---
+
+## 🔧 Reproducing the Analysis
 
 ### Prerequisites
 ```bash
-pip install -r requirements.txt
+pip install pandas numpy geopandas shapely tqdm matplotlib seaborn
 ```
 
-Required packages: `geopandas`, `geopy`, `shapely`, `pandas`, `numpy`, `tqdm`
+### Two-Script Workflow
 
-### Run Analysis
+#### 1. Generate Dataset (Run First)
 ```bash
-# Generate all filtered datasets
-python3 scripts/create_facility_proximity_dataset_filtered.py
+python scripts/create_dataset.py
+```
 
-# Create visualizations
-python3 scripts/visualize_facility_proximity.py
-python3 scripts/compare_filtered_datasets.py
+**What it does:**
+- Loads 756 facilities from `data/facilities/sudhelpla_agencies_20251126_233819.csv`
+- Calculates distances for all 11 treatment types in **one pass**
+- Outputs comprehensive datasets (no intermediate files)
+- Runtime: ~3-5 minutes for both census tracts and ZIP codes
 
-# Run example queries
-python3 examples/example_queries.py
+**Outputs:**
+- `data/processed/la_county_census_tracts_comprehensive.csv`
+- `data/processed/la_county_census_tracts_comprehensive.geojson`
+- `data/processed/la_county_zip_codes_comprehensive.csv`
+- `data/processed/la_county_zip_codes_comprehensive.geojson`
+
+#### 2. Create Visualizations (Optional)
+```bash
+# Visualize all facilities (general overview)
+python scripts/create_visualizations.py
+
+# Visualize specific treatment type
+python scripts/create_visualizations.py --treatment otp
+python scripts/create_visualizations.py --treatment mat
+python scripts/create_visualizations.py --treatment residential
+
+# Create visualizations for ALL treatment types
+python scripts/create_visualizations.py --treatment all-types
+
+# List available treatment types
+python scripts/create_visualizations.py --list
+```
+
+**What it creates:**
+- Distance distribution histograms
+- Facility count bar plots
+- High-resolution maps (facility locations, access quality, density)
+- Summary statistics
+
+**Outputs:** `figures/` (for all) or `figures/{treatment_type}/` (for specific types)
+
+---
+
+## 📋 Column Reference
+
+### Geographic Columns
+- `CT20` / `ZIPCODE` - Geographic unit identifier
+- `LABEL` - Human-readable name (census tracts only)
+- `centroid_lat`, `centroid_lon` - Centroid coordinates (WGS84)
+- `geometry` - Polygon geometry (GeoJSON only)
+
+### Treatment-Specific Columns
+
+**Format:** `{metric}_{treatment_type}_{measure}`
+
+**Example for OTP:**
+```
+nearest_facility_otp_id              # Facility ID
+nearest_facility_otp_name            # Facility name
+nearest_facility_otp_distance_km     # Distance in km
+nearest_facility_otp_distance_miles  # Distance in miles
+count_otp_within_1km                 # Count within 1 km
+count_otp_within_5km                 # Count within 5 km
+count_otp_within_10km                # Count within 10 km
+count_otp_within_15km                # Count within 15 km
+count_otp_within_25km                # Count within 25 km
+count_otp_within_1mi                 # Count within 1 mile
+count_otp_within_3mi                 # Count within 3 miles
+count_otp_within_5mi                 # Count within 5 miles
+count_otp_within_10mi                # Count within 10 miles
+count_otp_within_15mi                # Count within 15 miles
+```
+
+**Treatment Type Suffixes:**
+- `any` - Any SUD facility
+- `otp` - Opioid Treatment Program
+- `mat` - Medication-Assisted Treatment
+- `residential` - Residential facilities
+- `outpatient` - Outpatient services
+- `iop` - Intensive Outpatient
+- `withdrawal_mgmt` - Withdrawal management/detox
+- `co_occurring` - Co-occurring disorder capable
+- `men` - Men's facilities
+- `women` - Women's facilities
+- `youth` - Youth/adolescent facilities
+
+---
+
+## 🔬 Methodology
+
+### Facility Classification
+
+**Treatment types determined by service flags and bed availability:**
+
+- **OTP:** `service_OTP == True`
+- **MAT:** `service_MAT == True`
+- **Residential:** Facilities with `available_beds` containing "RS(", "RBH", or "R-WM"
+- **Outpatient:** `service_OP == True`
+- **IOP:** `service_IOP == True`
+- **Withdrawal Mgmt:** Any of `service_A_WM`, `service_R_WM`, `service_I_WM == True`, or "WM"/"Detox" in `available_beds`
+- **Co-Occurring:** `service_Co_Occurring == True`
+- **Men:** `service_Male == True`
+- **Women:** `service_Female == True`
+- **Youth:** `service_Youth == True`
+
+### Distance Calculation
+
+1. **Centroid Computation:** Uses NAD83 California State Plane Zone 5 (EPSG:2229) for accurate centroid calculation
+2. **Distance Metric:** Haversine formula (geodesic distance) accounts for Earth's curvature
+3. **Performance:** Vectorized NumPy operations compute all distances in seconds
+
+### Data Sources
+
+- **SUD Facilities:** LA County SUDHelpLA database (November 26, 2025)
+- **Census Tracts:** 2020 US Census boundaries
+- **ZIP Codes:** LA County ZIP code boundaries
+
+---
+
+## 📈 Summary Statistics
+
+### Census Tracts (n=2,496)
+
+| Treatment Type | Median Distance | Mean Facilities<br/>within 5km | Treatment Deserts<br/>(0 within 5km) |
+|----------------|-----------------|--------------------------------|--------------------------------------|
+| **Any Facility** | 1.82 km (1.13 mi) | 22.6 | 9.1% |
+| **OTP** | 4.98 km (3.09 mi) | 1.8 | 49.7% |
+| **MAT** | 4.78 km (2.97 mi) | 2.2 | 44.4% |
+| **Residential** | 2.35 km (1.46 mi) | 11.7 | 16.9% |
+| **Outpatient** | 1.47 km (0.91 mi) | 14.3 | 5.6% |
+| **IOP** | 2.76 km (1.71 mi) | 5.0 | 28.3% |
+| **Withdrawal Mgmt** | 3.61 km (2.24 mi) | 2.8 | 34.7% |
+| **Co-Occurring** | 2.77 km (1.72 mi) | 2.9 | 27.6% |
+| **Men's** | 2.51 km (1.56 mi) | 7.7 | 20.1% |
+| **Women's** | 3.75 km (2.33 mi) | 7.4 | 32.6% |
+| **Youth** | 3.93 km (2.44 mi) | 1.5 | 36.7% |
+
+### ZIP Codes (n=313)
+
+| Treatment Type | Median Distance | Mean Facilities<br/>within 5km | Treatment Deserts<br/>(0 within 5km) |
+|----------------|-----------------|--------------------------------|--------------------------------------|
+| **Any Facility** | 2.24 km (1.39 mi) | 19.4 | 18.2% |
+| **OTP** | 5.65 km (3.51 mi) | 1.5 | 56.2% |
+| **MAT** | 5.08 km (3.16 mi) | 2.0 | 50.5% |
+
+---
+
+## 🎯 Use Cases
+
+### 1. Overdose Risk Modeling
+Use proximity metrics as features in predictive models:
+```python
+features = [
+    'nearest_facility_mat_distance_km',
+    'count_otp_within_5km',
+    'count_residential_within_10km',
+    'nearest_facility_any_distance_km'
+]
+```
+
+### 2. Health Equity Analysis
+Correlate treatment access with socioeconomic indicators:
+```python
+# Join with census socioeconomic data
+equity_df = pd.merge(
+    df[['CT20', 'nearest_facility_otp_distance_km', 'count_mat_within_5km']],
+    census_demographics,
+    on='CT20'
+)
+```
+
+### 3. Policy Evaluation
+Assess impact of new facility locations:
+```python
+# Before/after comparison
+baseline = df[['CT20', 'count_otp_within_5km']].copy()
+# Simulate new facility at location X
+# Recalculate distances
+# Compare coverage improvement
+```
+
+### 4. Treatment Desert Identification
+Target areas for intervention:
+```python
+critical_deserts = df[
+    (df['count_otp_within_5km'] == 0) &
+    (df['count_mat_within_5km'] == 0) &
+    (df['count_residential_within_5km'] == 0)
+]
 ```
 
 ---
 
-## Use Cases
-
-### Research Applications
-1. **Health Equity Analysis** - Correlate with socioeconomic indicators, race/ethnicity, overdose rates
-2. **Predictive Modeling** - Use proximity as feature in overdose risk models
-3. **Service Utilization** - Model how distance affects treatment engagement
-4. **Policy Evaluation** - Assess impact of new facility locations
-
-### Which Dataset to Use?
-
-**General treatment access** → Use "All"
-
-**Housing-insecure populations** → Use "Residential" (bed availability)
-
-**Gender-specific studies** → Use "Men" or "Women" (differences are minimal)
-
-**Youth interventions** → Use "Youth" (note: severe shortage identified)
-
-**Comparative analysis** → Use multiple datasets to contrast access patterns
-
----
-
-## Visualizations
-
-Generated plots in `figures/`:
-
-- `distance_distributions.png` - Distance to nearest facility histograms
-- `facility_counts_by_distance.png` - Average counts by distance threshold
-- `comparison_median_distances.png` - Cross-filter median distance comparison
-- `comparison_zero_facilities.png` - Treatment desert prevalence by filter
-- `comparison_distributions.png` - Distance distribution by filter type
-- `comparison_facility_counts.png` - Facility density comparison
-
----
-
-## Limitations
+## ⚠️ Limitations
 
 ### Distance vs. Accessibility
 Geodesic distance does not account for:
-- Road networks / travel time
-- Public transportation availability
+- Road networks / actual travel time
+- Public transportation routes and schedules
 - Traffic patterns
-- Facility hours of operation
+- Physical barriers (highways, mountains, etc.)
 
-### Facility Characteristics
-Analysis does not consider:
+### Facility Characteristics Not Included
 - Current availability / waitlists
-- Insurance acceptance (Medi-Cal, private)
+- Insurance acceptance
 - Language services / cultural competency
-- Specific treatment modalities (MAT, CBT, etc.)
+- Specific treatment protocols
+- Quality of care metrics
 
-### Capacity Considerations
-- Treatment_Capacity = 0 indicates outpatient (still provides services)
-- Does not reflect current occupancy or waitlist status
-- May not include all bed types
-
-### Temporal Snapshot
-- Data from November 2025
-- Facility status may change (openings, closures, program changes)
+### Temporal Considerations
+- Data snapshot from November 2025
+- Facility status changes over time
+- Does not reflect real-time bed availability
 
 ---
 
-## Future Enhancements
-
-Potential additional analyses:
-- **Capacity-weighted distance** - Weight by number of beds available
-- **Service-specific filters** - MAT providers, detox-only, dual diagnosis
-- **Insurance filters** - Medi-Cal accepting facilities
-- **Travel time analysis** - Integrate road network and transit data
-- **Waitlist data** - Actual availability vs. theoretical access
-
----
-
-## Project Structure
+## 🗂️ Project Structure
 
 ```
 overdose-risk-prediction/
 ├── data/
-│   ├── facilities/          # Source facility data
-│   ├── geo/                 # Geographic boundary files
-│   └── processed/           # Generated datasets (20 files)
-├── figures/                 # Visualizations (7 plots)
+│   ├── facilities/                    # Source facility data
+│   │   └── sudhelpla_agencies_20251126_233819.csv
+│   ├── geo/                           # Geographic boundary files
+│   │   ├── 2020_Census_Tracts_2025.11.25.geojson
+│   │   └── LA_County_ZIP_Codes_2025.11.25.geojson
+│   └── processed/                     # Generated comprehensive datasets
+│       ├── la_county_census_tracts_comprehensive.csv
+│       ├── la_county_census_tracts_comprehensive.geojson
+│       ├── la_county_zip_codes_comprehensive.csv
+│       └── la_county_zip_codes_comprehensive.geojson
+├── figures/                           # Visualizations (all facilities)
+│   └── {treatment_type}/              # Treatment-specific visualizations
 ├── scripts/
-│   ├── create_facility_proximity_dataset_filtered.py  # Main analysis
-│   ├── visualize_facility_proximity.py                # Basic viz
-│   ├── compare_filtered_datasets.py                   # Comparison viz
-│   └── example_queries.py                             # Usage examples
-├── examples/outputs/        # Example filtered outputs
-├── requirements.txt         # Python dependencies
-└── README.md               # This file
+│   ├── create_dataset.py              # Generate comprehensive datasets
+│   └── create_visualizations.py       # Create all visualizations
+└── README.md                          # This file
 ```
 
 ---
 
-## Citation
+## 🚀 What Makes This Comprehensive?
 
-If using this analysis in research or publications, please cite the data sources:
+### Single Unified Dataset
+- **No need for multiple files** - All treatment types in one place
+- **Easy comparisons** - All metrics use same geography
+- **Consistent methodology** - Same distance calculations across all types
 
-- **SUD Facilities:** California Department of Health Care Services (DHCS)
-- **Geographic Data:** U.S. Census Bureau (2020 boundaries)
-- **Analysis:** [Your institution/name], November 2025
+### 11 Treatment Types
+Most analyses only consider "any facility" - this provides:
+- **Treatment modality access** (OTP, MAT, IOP, Outpatient, Residential, Detox)
+- **Population-specific access** (Men, Women, Youth)
+- **Capability filters** (Co-occurring disorders)
 
----
-
-## Contact & Support
-
-For questions about:
-- **Methodology:** See `scripts/create_facility_proximity_dataset_filtered.py`
-- **Data columns:** See "Data Columns" section above
-- **Usage examples:** See `examples/example_queries.py`
-
----
-
-## Summary Statistics
-
-### Census Tracts (n=2,496)
-```
-All Facilities:      1.14 km median | 96.5% have ≥1 within 5km
-Residential:         1.64 km median | 93.0% have ≥1 within 5km
-Men:                 1.16 km median | 96.0% have ≥1 within 5km
-Women:               1.17 km median | 95.8% have ≥1 within 5km
-Youth:               6.11 km median | 37.3% have ≥1 within 5km
-```
-
-### ZIP Codes (n=313)
-```
-All Facilities:      1.28 km median | 89.1% have ≥1 within 5km
-Residential:         2.07 km median | 85.3% have ≥1 within 5km
-Men:                 1.28 km median | 88.8% have ≥1 within 5km
-Women:               1.29 km median | 88.8% have ≥1 within 5km
-Youth:               7.12 km median | 31.3% have ≥1 within 5km
-```
+### Complete Metrics
+- Multiple distance thresholds (1, 5, 10, 15, 25 km/mi)
+- Both metric and imperial units
+- Facility counts AND distances
+- 154 proximity columns total
 
 ---
 
-**Analysis Complete** - All datasets ready for integration into overdose risk prediction models and health equity research.
+## 📚 Citation
+
+If using this analysis in research or publications:
+
+```bibtex
+@dataset{la_sud_proximity_2025,
+  title={Comprehensive SUD Facility Proximity Analysis: Los Angeles County},
+  author={[Your Name/Institution]},
+  year={2025},
+  month={November},
+  note={756 facilities, 11 treatment types, 2,496 census tracts}
+}
+```
+
+**Data Sources:**
+- LA County SUDHelpLA Facility Database (November 2025)
+- U.S. Census Bureau 2020 Boundaries
+- California Department of Health Care Services
+
+---
+
+## 🤝 Support
+
+**For questions about:**
+- **Methodology:** See code in `scripts/create_dataset.py`
+- **Data columns:** See "Column Reference" section above
+- **Visualizations:** Run `python scripts/create_visualizations.py --help`
+
+---
+
+**Analysis Complete** ✅
+Ready for integration into overdose risk prediction models, health equity research, and policy evaluation.
