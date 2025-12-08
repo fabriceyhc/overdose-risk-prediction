@@ -426,6 +426,119 @@ def create_facility_density_map(census_gdf, census_df, facilities_gdf, output_di
     plt.close()
 
 
+def create_zip_centroid_comparison_map(zip_gdf, zip_df, facilities_gdf, output_dir, treatment_name, filter_type):
+    """Create map comparing geometric vs population-weighted centroids for ZIP codes."""
+    print(f"\nCreating ZIP code centroid comparison map for {treatment_name}...")
+
+    # Load the comprehensive ZIP code data to get both centroid types
+    base_dir = Path('/data2/fabricehc/overdose-risk-prediction')
+    data_dir = base_dir / 'data'
+
+    # Load original ZIP GeoJSON to calculate geometric centroids
+    zip_path = data_dir / 'geo' / 'LA_County_ZIP_Codes_2025.11.25.geojson'
+    zip_original = gpd.read_file(zip_path)
+
+    # Calculate geometric centroids
+    zip_projected = zip_original.to_crs('EPSG:2229')
+    centroids_projected = zip_projected.geometry.centroid
+    centroids_wgs84 = centroids_projected.to_crs('EPSG:4326')
+    zip_original['geometric_lat'] = centroids_wgs84.y
+    zip_original['geometric_lon'] = centroids_wgs84.x
+
+    # Load population-weighted centroids
+    pop_centroids_path = data_dir / 'geo' / 'ZIP_Code_Population_Weighted_Centroids_-8037460774014549482.csv'
+    if pop_centroids_path.exists():
+        pop_centroids = pd.read_csv(pop_centroids_path)
+        zip_original['ZIPCODE'] = zip_original['ZIPCODE'].astype(str)
+        pop_centroids['STD_ZIP5'] = pop_centroids['STD_ZIP5'].astype(str)
+
+        pop_centroids_subset = pop_centroids[['STD_ZIP5', 'LATITUDE', 'LONGITUDE']].rename(
+            columns={'STD_ZIP5': 'ZIPCODE', 'LATITUDE': 'pop_weighted_lat', 'LONGITUDE': 'pop_weighted_lon'}
+        )
+        zip_original = zip_original.merge(pop_centroids_subset, on='ZIPCODE', how='left')
+
+    # Merge with proximity data
+    zip_df_copy = zip_df.copy()
+    zip_df_copy['ZIPCODE'] = zip_df_copy['ZIPCODE'].astype(str)
+    zip_original = zip_original.merge(
+        zip_df_copy[['ZIPCODE', 'nearest_facility_distance_km', 'count_within_5km']],
+        on='ZIPCODE',
+        how='left'
+    )
+
+    # Create figure
+    fig, ax = plt.subplots(figsize=(20, 16))
+
+    # Color code by access quality (distance to nearest facility)
+    zip_original.plot(column='nearest_facility_distance_km', ax=ax, cmap='RdYlGn_r',
+                     edgecolor='black', linewidth=0.5, alpha=0.6,
+                     legend=True, legend_kwds={
+                         'label': f'Distance to Nearest {treatment_name} Facility (km)',
+                         'orientation': 'horizontal',
+                         'shrink': 0.6,
+                         'pad': 0.05
+                     },
+                     vmin=0, vmax=zip_original['nearest_facility_distance_km'].quantile(0.95))
+
+    # Plot facilities (smaller markers)
+    facilities_gdf.plot(ax=ax, marker='*', color='red', markersize=40,
+                       label=f'{treatment_name} Facilities', zorder=5, alpha=0.7)
+
+    # Plot geometric centroids (blue circles - smaller)
+    ax.scatter(zip_original['geometric_lon'], zip_original['geometric_lat'],
+              c='blue', s=25, alpha=0.7, edgecolors='darkblue', linewidth=0.8,
+              label='Geometric Centroids', zorder=4)
+
+    # Plot population-weighted centroids (orange triangles - smaller)
+    has_pop_weighted = zip_original['pop_weighted_lat'].notna()
+    if has_pop_weighted.any():
+        ax.scatter(zip_original.loc[has_pop_weighted, 'pop_weighted_lon'],
+                  zip_original.loc[has_pop_weighted, 'pop_weighted_lat'],
+                  c='orange', marker='^', s=35, alpha=0.9, edgecolors='darkorange', linewidth=0.8,
+                  label='Population-Weighted Centroids', zorder=4)
+
+        # Draw lines connecting the two centroid types
+        for idx, row in zip_original[has_pop_weighted].iterrows():
+            ax.plot([row['geometric_lon'], row['pop_weighted_lon']],
+                   [row['geometric_lat'], row['pop_weighted_lat']],
+                   'k--', alpha=0.3, linewidth=0.5, zorder=3)
+
+    ax.set_xlim(zip_original.total_bounds[0], zip_original.total_bounds[2])
+    ax.set_ylim(zip_original.total_bounds[1], zip_original.total_bounds[3])
+    ax.set_xlabel('Longitude', fontsize=14)
+    ax.set_ylabel('Latitude', fontsize=14)
+    ax.set_title(f'ZIP Code Centroid Comparison: {treatment_name}\n' +
+                 f'Geometric (blue circles) vs Population-Weighted (orange triangles)',
+                 fontsize=16, fontweight='bold', pad=15)
+
+    # Add statistics
+    num_pop_weighted = has_pop_weighted.sum()
+    num_geometric_only = (~has_pop_weighted).sum()
+    median_dist = zip_original['nearest_facility_distance_km'].median()
+    treatment_deserts = (zip_original['count_within_5km'] == 0).sum()
+    desert_pct = treatment_deserts / len(zip_original) * 100
+
+    stats_text = (f'ZIP Codes: {len(zip_original)}\n'
+                 f'Population-Weighted: {num_pop_weighted} ({num_pop_weighted/len(zip_original)*100:.1f}%)\n'
+                 f'Geometric Only: {num_geometric_only}\n'
+                 f'Median Distance: {median_dist:.2f} km\n'
+                 f'Treatment Deserts: {treatment_deserts} ({desert_pct:.1f}%)')
+
+    ax.text(0.02, 0.98, stats_text, transform=ax.transAxes,
+            fontsize=11, verticalalignment='top', bbox=dict(boxstyle='round',
+            facecolor='white', alpha=0.9))
+
+    ax.legend(loc='lower right', fontsize=11, framealpha=0.9)
+    ax.set_aspect('equal')
+    plt.tight_layout()
+
+    filename = 'map_zip_centroid_comparison.png' if filter_type == 'all' else f'map_{filter_type}_zip_centroid_comparison.png'
+    output_path = output_dir / filename
+    plt.savefig(output_path, dpi=300, bbox_inches='tight', facecolor='white')
+    print(f"Saved: {output_path}")
+    plt.close()
+
+
 def print_summary_statistics(census_df, zip_df, treatment_name):
     """Print summary statistics."""
     print("\n" + "="*80)
@@ -486,6 +599,7 @@ def create_visualizations_for_treatment(filter_type):
     create_facility_locations_map(census_gdf, facilities_gdf, output_dir, treatment_name, filter_type)
     create_access_quality_map(census_gdf, census_df, output_dir, treatment_name, filter_type)
     create_facility_density_map(census_gdf, census_df, facilities_gdf, output_dir, treatment_name, filter_type)
+    create_zip_centroid_comparison_map(zip_gdf, zip_df, facilities_gdf, output_dir, treatment_name, filter_type)
 
     print_summary_statistics(census_df, zip_df, treatment_name)
 

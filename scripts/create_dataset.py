@@ -97,19 +97,69 @@ def load_all_facilities(facilities_path: str) -> pd.DataFrame:
     return df
 
 
-def load_geographic_units(geo_path: str, unit_type: str) -> gpd.GeoDataFrame:
+def load_geographic_units(geo_path: str, unit_type: str, base_dir: Path = None) -> gpd.GeoDataFrame:
     """Load geographic units (census tracts or ZIP codes)."""
     print(f"Loading {unit_type}...")
 
     gdf = gpd.read_file(geo_path)
 
-    print(f"Calculating centroids for {len(gdf)} {unit_type}...")
-    gdf_projected = gdf.to_crs('EPSG:2229')
-    centroids_projected = gdf_projected.geometry.centroid
-    centroids_wgs84 = centroids_projected.to_crs('EPSG:4326')
+    if unit_type == 'zip_codes' and base_dir is not None:
+        # For ZIP codes, use population-weighted centroids where available
+        print(f"Loading population-weighted centroids for ZIP codes...")
+        pop_centroids_path = base_dir / 'data' / 'geo' / 'ZIP_Code_Population_Weighted_Centroids_-8037460774014549482.csv'
 
-    gdf['centroid_lat'] = centroids_wgs84.y
-    gdf['centroid_lon'] = centroids_wgs84.x
+        if pop_centroids_path.exists():
+            pop_centroids = pd.read_csv(pop_centroids_path)
+
+            # Ensure ZIP codes are strings for consistent matching
+            gdf['ZIPCODE'] = gdf['ZIPCODE'].astype(str)
+            pop_centroids['STD_ZIP5'] = pop_centroids['STD_ZIP5'].astype(str)
+
+            # Merge population-weighted centroids
+            pop_centroids_subset = pop_centroids[['STD_ZIP5', 'LATITUDE', 'LONGITUDE']].rename(
+                columns={'STD_ZIP5': 'ZIPCODE', 'LATITUDE': 'pop_weighted_lat', 'LONGITUDE': 'pop_weighted_lon'}
+            )
+            gdf = gdf.merge(pop_centroids_subset, on='ZIPCODE', how='left')
+
+            # Calculate geometric centroids as fallback
+            print(f"Calculating geometric centroids as fallback for {len(gdf)} ZIP codes...")
+            gdf_projected = gdf.to_crs('EPSG:2229')
+            centroids_projected = gdf_projected.geometry.centroid
+            centroids_wgs84 = centroids_projected.to_crs('EPSG:4326')
+
+            gdf['geometric_lat'] = centroids_wgs84.y
+            gdf['geometric_lon'] = centroids_wgs84.x
+
+            # Use population-weighted where available, geometric as fallback
+            gdf['centroid_lat'] = gdf['pop_weighted_lat'].fillna(gdf['geometric_lat'])
+            gdf['centroid_lon'] = gdf['pop_weighted_lon'].fillna(gdf['geometric_lon'])
+
+            # Report statistics
+            num_pop_weighted = gdf['pop_weighted_lat'].notna().sum()
+            num_geometric = gdf['pop_weighted_lat'].isna().sum()
+            print(f"  ✓ Using population-weighted centroids: {num_pop_weighted}")
+            print(f"  ✓ Using geometric centroids (fallback): {num_geometric}")
+
+            # Clean up temporary columns
+            gdf = gdf.drop(columns=['pop_weighted_lat', 'pop_weighted_lon', 'geometric_lat', 'geometric_lon'])
+        else:
+            print(f"  ⚠ Population-weighted centroids file not found, using geometric centroids")
+            print(f"Calculating geometric centroids for {len(gdf)} {unit_type}...")
+            gdf_projected = gdf.to_crs('EPSG:2229')
+            centroids_projected = gdf_projected.geometry.centroid
+            centroids_wgs84 = centroids_projected.to_crs('EPSG:4326')
+
+            gdf['centroid_lat'] = centroids_wgs84.y
+            gdf['centroid_lon'] = centroids_wgs84.x
+    else:
+        # For census tracts, use geometric centroids
+        print(f"Calculating geometric centroids for {len(gdf)} {unit_type}...")
+        gdf_projected = gdf.to_crs('EPSG:2229')
+        centroids_projected = gdf_projected.geometry.centroid
+        centroids_wgs84 = centroids_projected.to_crs('EPSG:4326')
+
+        gdf['centroid_lat'] = centroids_wgs84.y
+        gdf['centroid_lon'] = centroids_wgs84.x
 
     return gdf
 
@@ -255,7 +305,7 @@ def create_comprehensive_dataset(geo_type='census_tracts'):
     else:
         geo_path = data_dir / 'geo' / 'LA_County_ZIP_Codes_2025.11.25.geojson'
 
-    geo_gdf = load_geographic_units(str(geo_path), geo_type)
+    geo_gdf = load_geographic_units(str(geo_path), geo_type, base_dir)
 
     # Start with geographic columns
     print(f"\nStarting with {len(geo_gdf.columns)} geographic columns")

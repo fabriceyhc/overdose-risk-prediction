@@ -226,7 +226,11 @@ python scripts/create_visualizations.py --list
 **What it creates:**
 - Distance distribution histograms
 - Facility count bar plots
-- High-resolution maps (facility locations, access quality, density)
+- High-resolution maps:
+  - Facility locations map
+  - Access quality map (color-coded by distance to nearest facility)
+  - Facility density map
+  - **ZIP code centroid comparison map** (shows geometric vs population-weighted centroids with access color-coding)
 - Summary statistics
 
 **Outputs:** `figures/` (for all) or `figures/{treatment_type}/` (for specific types)
@@ -297,7 +301,10 @@ count_otp_within_15mi                # Count within 15 miles
 
 ### Distance Calculation
 
-1. **Centroid Computation:** Uses NAD83 California State Plane Zone 5 (EPSG:2229) for accurate centroid calculation
+1. **Centroid Computation:**
+   - **Census Tracts:** Geometric centroids using NAD83 California State Plane Zone 5 (EPSG:2229)
+   - **ZIP Codes:** Population-weighted centroids (93% of ZIPs) with geometric fallback for remaining ZIPs
+   - Population weighting better represents where people actually live within each ZIP code
 2. **Distance Metric:** Haversine formula (geodesic distance) accounts for Earth's curvature
 3. **Performance:** Vectorized NumPy operations compute all distances in seconds
 
@@ -306,6 +313,7 @@ count_otp_within_15mi                # Count within 15 miles
 - **SUD Facilities:** LA County SUDHelpLA database (November 26, 2025)
 - **Census Tracts:** 2020 US Census boundaries
 - **ZIP Codes:** LA County ZIP code boundaries
+- **Population-Weighted Centroids:** US Census ZIP Code Population Weighted Centroids (for more accurate distance estimates)
 
 ---
 
@@ -329,11 +337,21 @@ count_otp_within_15mi                # Count within 15 miles
 
 ### ZIP Codes (n=313)
 
+**Note:** ZIP code distances use population-weighted centroids (93% of ZIPs) to better represent where people actually live.
+
 | Treatment Type | Median Distance | Mean Facilities<br/>within 5km | Treatment Deserts<br/>(0 within 5km) |
 |----------------|-----------------|--------------------------------|--------------------------------------|
-| **Any Facility** | 2.24 km (1.39 mi) | 19.4 | 18.2% |
-| **OTP** | 5.65 km (3.51 mi) | 1.5 | 56.2% |
-| **MAT** | 5.08 km (3.16 mi) | 2.0 | 50.5% |
+| **Any Facility** | 1.99 km (1.24 mi) | 20.0 | 15.3% |
+| **OTP** | 5.53 km (3.44 mi) | 1.5 | 55.9% |
+| **MAT** | 3.70 km (2.30 mi) | 2.3 | 34.5% |
+| **Residential** | 3.93 km (2.44 mi) | 11.7 | 37.1% |
+| **Outpatient** | 3.16 km (1.96 mi) | 14.0 | 26.5% |
+| **IOP** | 3.25 km (2.02 mi) | 4.1 | 29.7% |
+| **Withdrawal Mgmt** | 5.00 km (3.11 mi) | 1.8 | 50.2% |
+| **Co-Occurring** | 3.59 km (2.23 mi) | 2.3 | 32.6% |
+| **Men's** | 4.93 km (3.07 mi) | 8.5 | 48.9% |
+| **Women's** | 3.49 km (2.17 mi) | 7.5 | 31.0% |
+| **Youth** | 4.48 km (2.78 mi) | 1.3 | 46.0% |
 
 ---
 
